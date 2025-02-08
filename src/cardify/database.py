@@ -1,20 +1,69 @@
+import logging
 import sqlite3
+import sys
 from pathlib import Path
 from typing import Dict, Optional, Union
+
+logger = logging.getLogger(__name__)  # Get the logger for this module
 
 
 class PDFAnkiDB:
     def __init__(self, db_path: str = "pdf_anki.db"):
-        """Initialize the database connection and create tables if they don't exist."""
-        self.conn = sqlite3.connect(db_path)
-        self.conn.row_factory = sqlite3.Row
-        self.cursor = self.conn.cursor()
-        self._create_tables()
+        """Initialize the database connection and create tables if they don't exist.
+
+        Args:
+            db_path (str): Path to the SQLite database file. Defaults to "pdf_anki.db"
+
+        Raises:
+            sqlite3.Error: If database initialization fails
+        """
+        if db_path is None:
+            db_path = "pdf_anki.db"
+            logger.debug("db_path None using default path")
+        logger.debug(f"Initializing database with path: {db_path}")
+        path = Path(db_path)
+
+        if not path.exists():
+            logger.info(f"Database file not found at: {db_path}")
+
+            while True:
+                response = (
+                    input(f"Database file {db_path} does not exist. Create it? [y/n]: ")
+                    .lower()
+                    .strip()
+                )
+                if response in ["y", "n"]:
+                    break
+                logger.warning("Invalid input received, expected 'y' or 'n'")
+                print("Please enter 'y' or 'n'")
+
+            if response == "n":
+                logger.info("User declined database creation, exiting")
+                sys.exit(0)
+
+            logger.info(f"Creating new database at: {db_path}")
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                logger.debug(f"Created parent directory: {path.parent}")
+            except Exception as e:
+                logger.error(f"Failed to create parent directory: {e}")
+                raise
+
+        try:
+            self.conn = sqlite3.connect(db_path)
+            self.conn.row_factory = sqlite3.Row
+            self.cursor = self.conn.cursor()
+            self._create_tables()
+            logger.debug("Successfully initialized database connection and tables")
+        except sqlite3.Error as e:
+            logger.error(f"Database initialization failed: {e}")
+            raise
 
     def _create_tables(self):
         """Create all necessary tables for the PDF to Anki system."""
         # PDFs table stores the original PDF files and their metadata
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS pdfs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             filename TEXT NOT NULL,
@@ -29,15 +78,17 @@ class PDFAnkiDB:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-        """)
+        """
+        )
 
         # Text chunks table stores segments of the PDF content with specific headers
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS text_chunks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             pdf_id INTEGER NOT NULL,
             chunk_index INTEGER NOT NULL,
-            page_content TEXT NOT NULL UNIQUE,
+            page_content TEXT NOT NULL,
             type TEXT NOT NULL,
             header_1 TEXT,
             header_2 TEXT,
@@ -50,10 +101,12 @@ class PDFAnkiDB:
             FOREIGN KEY (pdf_id) REFERENCES pdfs (id) ON DELETE CASCADE,
             UNIQUE(pdf_id, chunk_index)
         )
-        """)
+        """
+        )
 
         # Anki cards table stores the card information
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS anki_cards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chunk_id INTEGER NOT NULL,
@@ -66,7 +119,8 @@ class PDFAnkiDB:
             last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (chunk_id) REFERENCES text_chunks (id) ON DELETE CASCADE
         )
-        """)
+        """
+        )
 
         # Create indexes for better query performance
         self.cursor.execute(
@@ -294,9 +348,3 @@ class PDFAnkiDB:
     def close(self):
         """Close the database connection."""
         self.conn.close()
-
-
-# Example usage:
-if __name__ == "__main__":
-    # Initialize the database
-    db = PDFAnkiDB()

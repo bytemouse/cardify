@@ -71,7 +71,7 @@ url = "https://download.pytorch.org/whl/rocm6.2.4"
 explicit = true
 
 [project.scripts]
-cardify = "cardify:main"
+cardify = "cardify.cli:main"
 
 [build-system]
 requires = ["hatchling"]

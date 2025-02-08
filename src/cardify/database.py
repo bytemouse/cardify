@@ -4,7 +4,7 @@ from typing import Dict, Optional, Union
 
 
 class PDFAnkiDB:
-    def __init__(self, db_path: str = "pdf_anki.sqlite3"):
+    def __init__(self, db_path: str = "pdf_anki.db"):
         """Initialize the database connection and create tables if they don't exist."""
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
@@ -25,23 +25,30 @@ class PDFAnkiDB:
             publication_date TEXT,
             page_count INTEGER,
             file_size INTEGER,
-            md5_hash TEXT UNIQUE,
+            md5_hash TEXT UNIQUE NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
 
-        # Text chunks table stores segments of the PDF content
+        # Text chunks table stores segments of the PDF content with specific headers
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS text_chunks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             pdf_id INTEGER NOT NULL,
-            content TEXT NOT NULL,
-            start_page INTEGER,
-            end_page INTEGER,
-            chunk_index INTEGER,
+            chunk_index INTEGER NOT NULL,
+            page_content TEXT NOT NULL UNIQUE,
+            type TEXT NOT NULL,
+            header_1 TEXT,
+            header_2 TEXT,
+            header_3 TEXT,
+            header_4 TEXT,
+            code BOOLEAN NOT NULL DEFAULT 0,
+            start_page INTEGER NOT NULL,
+            end_page INTEGER NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (pdf_id) REFERENCES pdfs (id) ON DELETE CASCADE
+            FOREIGN KEY (pdf_id) REFERENCES pdfs (id) ON DELETE CASCADE,
+            UNIQUE(pdf_id, chunk_index)
         )
         """)
 
@@ -130,38 +137,70 @@ class PDFAnkiDB:
     def add_text_chunk(
         self,
         pdf_id: int,
-        content: str,
-        start_page: Optional[int] = None,
-        end_page: Optional[int] = None,
-        chunk_index: Optional[int] = None,
+        page_content: str,
+        chunk_type: str,
+        start_page: int,
+        end_page: int,
+        chunk_index: int,
+        header_1: Optional[str] = None,
+        header_2: Optional[str] = None,
+        header_3: Optional[str] = None,
+        header_4: Optional[str] = None,
+        is_code: bool = False,
     ) -> int:
         """
         Add a text chunk associated with a PDF.
 
         Args:
             pdf_id: ID of the associated PDF
-            content: The text content of the chunk
+            page_content: The main text content of the chunk
+            chunk_type: Type of the chunk
             start_page: Starting page number of the chunk
             end_page: Ending page number of the chunk
             chunk_index: Index of the chunk in sequence
+            header_1: First level header
+            header_2: Second level header
+            header_3: Third level header
+            header_4: Fourth level header
+            is_code: Boolean indicating if the chunk contains code
 
         Returns:
             id: The ID of the inserted chunk record
 
         Raises:
             sqlite3.Error: If the insertion fails
+            sqlite3.IntegrityError: If chunk_index already exists for this pdf_id
+                                  or if page_content is duplicate
         """
         self.cursor.execute(
             """
         INSERT INTO text_chunks (
             pdf_id,
-            content,
+            chunk_index,
+            page_content,
+            type,
             start_page,
             end_page,
-            chunk_index
-        ) VALUES (?, ?, ?, ?, ?)
+            header_1,
+            header_2,
+            header_3,
+            header_4,
+            code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-            (pdf_id, content, start_page, end_page, chunk_index),
+            (
+                pdf_id,
+                chunk_index,
+                page_content,
+                chunk_type,
+                start_page,
+                end_page,
+                header_1,
+                header_2,
+                header_3,
+                header_4,
+                1 if is_code else 0,
+            ),
         )
 
         self.conn.commit()
@@ -259,6 +298,5 @@ class PDFAnkiDB:
 
 # Example usage:
 if __name__ == "__main__":
+    # Initialize the database
     db = PDFAnkiDB()
-
-    db.close()

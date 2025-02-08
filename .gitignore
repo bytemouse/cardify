@@ -2,3 +2,6 @@
 *.sqlite3
 .env
 .venv
+tmp/
+.idea
+*.pyc

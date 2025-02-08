@@ -8,11 +8,12 @@ An application that converts books into markdown format and generates educationa
 ### Text Extraction Module
 - AI basd PDF to Markdown
 - [marker](https://github.com/VikParuchuri/marker)
+- Command: `marker_single fiel.pdf --output_format markdown --paginate_output --output_dir . --use_llm --disable_image_extraction --debug`
 
 ### Content Processing
 - Text chunking algorithm to break content into digestible segments
 - Metadata preservation for chapter/section tracking
-- Section marker injection for better context
+- use langchain-text-splitter[https://python.langchain.com/api_reference/text_splitters/markdown/langchain_text_splitters.markdown.ExperimentalMarkdownSyntaxTextSplitter.html]
 
 ### Question Generation
 - Gemini API integration for Q&A generation
